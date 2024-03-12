@@ -31,10 +31,10 @@ app.use(express.json());
 // app.use(express.urlencoded({ extended: true }));
 // App icon TBD
 // app.use('/favicon.ico', epxress.static('./favicon.ico'))
-
+app.use(cors());
 
 // Inititalization of ExpressJS Application
-var hashedup = null; // TESTING ONLY
+var hashedup = "$2b$10$CVs8L8LhNNnlz3R4c2gBiunmMD6dV6RdAZfnzN1qa8m4s8ph3/Dmu"; // TESTING ONLY
 
 // Testing request
 app.use('/test', (req, res) => {
@@ -74,6 +74,7 @@ app.use('/register', async (req, res) => {
 
 // Login of existing users
 app.use('/login', async (req, res) => {
+  console.log(req.body.user, ' logged in from ');
   let username = req.body.username;
   let password = req.body.password;
 
@@ -82,7 +83,6 @@ app.use('/login', async (req, res) => {
   if (valid === false) {
     res.send("Invalid Credentials.");
   } else {
-    res.send("Success");
     jwt.sign({ user: username }, "secretkey", (err, token) => {
       res.json({ token });
     });
@@ -91,13 +91,22 @@ app.use('/login', async (req, res) => {
 
 // TESTING of JWT auth's
 app.post('/post', verifyToken, (req, res) => {
-  jwt.verify(req.token, "secretkey", (err, authData) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden' (invalid token)
     } else {
+      var result = '';
+      try {
+        await sql.connect(sqlConfig);
+        result = await sql.query`select * from Users`;
+        // res.send(`<p>${JSON.stringify(result)}</p>`);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(err);
+      }
+      console.log(result);
       res.json({
-        message: "POST created...",
-        authData
+        result
       });
     }
   });
@@ -116,6 +125,16 @@ function verifyToken(req, res, next) {
   }
 }
 
+async function sqlTesting() {
+  try {
+    await sql.connect(sqlConfig);
+    const result = await sql.query`select * from Users`;
+    res.send(`<p>${JSON.stringify(result)}</p>`);
+  } catch (err) {
+    console.log(err);
+    res.send(err);
+  }
+}
 app.use('/sql', async (req, res) => {
   try {
     await sql.connect(sqlConfig);
