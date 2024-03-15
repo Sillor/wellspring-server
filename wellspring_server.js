@@ -1,3 +1,6 @@
+// Local File Imports
+const verifyToken = require('./components/verifyToken');
+
 // ExpressJS Requirements
 const express = require('express'); // ExpressJS Framework
 const app = express(); // Application
@@ -26,11 +29,12 @@ const sqlConfig = {
   }
 }
 
-// ExpressJS 'use' configs
-app.use(express.json());
-// app.use(express.urlencoded({ extended: true }));
 // App icon TBD
 // app.use('/favicon.ico', epxress.static('./favicon.ico'))
+
+// ExpressJS 'use' configs
+// app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(cors());
 
 // Inititalization of ExpressJS Application
@@ -74,56 +78,52 @@ app.use('/register', async (req, res) => {
 
 // Login of existing users
 app.use('/login', async (req, res) => {
-  console.log(req.body.user, ' logged in from ');
-  let username = req.body.username;
-  let password = req.body.password;
+  var username = req.body.username;
+  var password = req.body.password;
+  console.log(username, ' logging in from ', password);
 
-  const valid = await bcrypt.compare(password, hashedup);
+  try {
+    const valid = await bcrypt.compare(password, hashedup);
 
-  if (valid === false) {
-    res.send("Invalid Credentials.");
-  } else {
-    jwt.sign({ user: username }, "secretkey", (err, token) => {
-      res.json({ token });
-    });
+    if (valid === false) {
+      console.log("denied");
+      res.send(401);
+    } else {
+      let data = {
+        signInTime: Date.now(),
+        username,
+      }
+
+      const token = jwt.sign(data, 'secretkey', {expiresIn: '10m'}); // JWT that expires in 10 minutes
+      res.status(200).json({ message: 'success', token })
+    }
+  } catch (error) {
+    console.log(error);
+    res.send(error);
   }
 })
 
 // TESTING of JWT auth's
-app.post('/post', verifyToken, (req, res) => {
+app.use('/post', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden' (invalid token)
     } else {
-      var result = '';
       try {
         await sql.connect(sqlConfig);
-        result = await sql.query`select * from Users`;
-        // res.send(`<p>${JSON.stringify(result)}</p>`);
+        const result = await sql.query`select top 1 * from Patient`;
+        res.json(result.recordset);
+        console.log(result.recordset);
       } catch (err) {
         console.log('Error in /post\n', err);
         res.send(err);
       }
-      console.log(result);
-      res.json({
-        result
-      });
     }
   });
 });
 
 // Verification of JWT's
-function verifyToken(req, res, next) {
-  const bearerHeader = req.headers["authorization"];
 
-  if (typeof bearerHeader !== "undefined") {
-    const bearerToken = bearerHeader.split(" ")[1];
-    req.token = bearerToken;
-    next();
-  } else {
-    res.sendStatus(403);
-  }
-}
 
 async function sqlTesting() {
   try {
@@ -147,4 +147,4 @@ app.use('/sql', async (req, res) => {
 })
 
 // Start Server
-app.listen(8080, () => console.log('API is running on http://localhost:8080'));
+app.listen(5174, () => console.log('API is running on http://localhost:5174'));
