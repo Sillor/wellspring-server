@@ -80,7 +80,7 @@ app.use('/register', async (req, res) => {
 app.use('/login', async (req, res) => {
   var username = req.body.username;
   var password = req.body.password;
-  console.log(username, ' logging in from ', password);
+  console.log(username, ' logging in from ', req.socket.remoteAddress);
 
   try {
     const valid = await bcrypt.compare(password, hashedup);
@@ -113,7 +113,6 @@ app.use('/post', verifyToken.verifyToken, (req, res) => {
         await sql.connect(sqlConfig);
         const result = await sql.query`select top 1 * from Patient`;
         res.json(result.recordset);
-        console.log(result.recordset);
       } catch (err) {
         console.log('Error in /post\n', err);
         res.send(err);
