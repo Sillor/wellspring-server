@@ -33,57 +33,18 @@ const sqlConfig = {
 // app.use('/favicon.ico', epxress.static('./favicon.ico'))
 
 // ExpressJS 'use' configs
-// app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cors());
 
-// Inititalization of ExpressJS Application
-var hashedup = "$2b$10$CVs8L8LhNNnlz3R4c2gBiunmMD6dV6RdAZfnzN1qa8m4s8ph3/Dmu"; // TESTING ONLY
-
-// Testing request
-app.use('/test', (req, res) => {
-  let username = "admin";
-  let pass = "Admin@123";
-  let createdDate = new Date(Date.now());
-
-  bcrypt
-    .genSalt(saltRounds)
-    .then(async salt => {
-      return [await bcrypt.hash(pass, salt), salt]
-    })
-    .then(hash => {
-      let user_Obj = { "username": username, "hash": hash[0], "created": createdDate };
-      console.log(user_Obj);
-      hashedup = hash[0];
-      res.send(`<h1>${hash}</h1>`)
-      //return true;
-    })
-    .catch(err => { return err.message })
-})
-
-// Registration of new users
-app.use('/register', async (req, res) => {
-  let username = req.body.username;
-  let password = req.body.password;
-  let createdDate = new Date(Date.now());
-
-  // Check if username already exists
-
-  // Username already exists!
-
-  // Username does not exist
-
-  // Update USER table in SQL
-});
-
 // Login of existing users
 app.use('/login', async (req, res) => {
-  var username = req.body.username;
-  var password = req.body.password;
   console.log(username, ' logging in from ', req.socket.remoteAddress);
 
   try {
-    const valid = await bcrypt.compare(password, hashedup);
+    await sql.connect(sqlConfig);
+    const dboPassword = await sql.query`select password from dbo.Users where username = '${req.body.username}'`;
+    const valid = await bcrypt.compare(req.body.password, dboPassword);
 
     if (valid === false) {
       console.log("denied");
@@ -103,47 +64,212 @@ app.use('/login', async (req, res) => {
   }
 })
 
-// TESTING of JWT auth's
-app.use('/post', verifyToken.verifyToken, (req, res) => {
+// Get list of all patients
+app.use('/patients', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`select top 1 * from Patient`;
+        const result = await sql.query`select * from Patient`;
         res.json(result.recordset);
       } catch (err) {
         console.log('Error in /post\n', err);
-        res.send(err);
+        res.send(500, err);
       }
     }
   });
 });
 
-// Verification of JWT's
+// Get list of all appointments
+app.use('/appointments', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`select * from Appointment`;
+        res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Get list of messages
+app.use('/messages', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`select * from Message`;
+        res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Get list of labs
+app.use('/labs', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`select * from Lab`;
+        res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Get list of prescriptions
+app.use('/prescriptions', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`select * from Prescription`;
+        res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Create a new user
+app.use('/createuser', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
+        console.log(result);
+        // res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Create a new patient
+app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
+        console.log(result);
+        // res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Create a new appointment
+app.use('/createappointment', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
+        console.log(result);
+        // res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Create a new message
+app.use('/createmessage', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
+        console.log(result);
+        // res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Create a new lab
+app.use('/createlab', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
+        console.log(result);
+        // res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Create a new prescription
+app.use('/createprescription', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
+        console.log(result);
+        // res.json(result.recordset);
+      } catch (err) {
+        console.log('Error in /post\n', err);
+        res.send(500, err);
+      }
+    }
+  });
+});
 
 
-async function sqlTesting() {
-  try {
-    await sql.connect(sqlConfig);
-    const result = await sql.query`select * from Users`;
-    res.send(`<p>${JSON.stringify(result)}</p>`);
-  } catch (err) {
-    console.log(err);
-    res.send(err);
-  }
-}
-app.use('/sql', async (req, res) => {
-  try {
-    await sql.connect(sqlConfig);
-    const result = await sql.query`select * from Users`;
-    res.send(`<p>${JSON.stringify(result)}</p>`);
-  } catch (err) {
-    console.log(err);
-    res.send(err);
-  }
-})
+
 
 // Start Server
 app.listen(5174, () => console.log('API is running on http://localhost:5174'));
