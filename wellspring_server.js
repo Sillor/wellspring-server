@@ -33,18 +33,25 @@ const sqlConfig = {
 // app.use('/favicon.ico', epxress.static('./favicon.ico'))
 
 // ExpressJS 'use' configs
-app.use(express.urlencoded({ extended: true }));
+// app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cors());
 
 // Login of existing users
 app.use('/login', async (req, res) => {
-  console.log(username, ' logging in from ', req.socket.remoteAddress);
+  var date = new Date();
+  var username = '';
+  try {
+    var username = req.body.username;
+  } catch (error) {
+    console.log(error);
+  }
 
   try {
     await sql.connect(sqlConfig);
-    const dboPassword = await sql.query`select password from dbo.Users where username = '${req.body.username}'`;
-    const valid = await bcrypt.compare(req.body.password, dboPassword);
+    let query = `select password from Users WHERE username like '${username}'`;
+    const dboPassword = await sql.query(query) //`select password from Users WHERE username like '${req.body.username}'`// where username like "${req.body.username}"`;
+    const valid = await bcrypt.compare(req.body.password, dboPassword.recordset[0].password);
 
     if (valid === false) {
       console.log("denied");
@@ -55,17 +62,19 @@ app.use('/login', async (req, res) => {
         username,
       }
 
-      const token = jwt.sign(data, 'secretkey', {expiresIn: '10m'}); // JWT that expires in 10 minutes
+      const token = jwt.sign(data, 'secretkey', { expiresIn: '10m' }); // JWT that expires in 10 minutes
+      console.log(username, ' logging in from ', req.socket.remoteAddress, ' at ', date.toLocaleDateString());
       res.status(200).json({ message: 'success', token })
     }
   } catch (error) {
     console.log(error);
-    res.send(error);
+    res.json({ message: error });
   }
 })
 
 // Get list of all patients
 app.use('/patients', verifyToken.verifyToken, (req, res) => {
+  console.log('patients ping');
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden' (invalid token)
@@ -73,7 +82,8 @@ app.use('/patients', verifyToken.verifyToken, (req, res) => {
       try {
         await sql.connect(sqlConfig);
         const result = await sql.query`select * from Patient`;
-        res.json(result.recordset);
+        console.log(result);
+        res.status(200).json({ message: 'success', patients: result.recordset });
       } catch (err) {
         console.log('Error in /post\n', err);
         res.send(500, err);
@@ -175,18 +185,31 @@ app.use('/createuser', verifyToken.verifyToken, (req, res) => {
 
 // Create a new patient
 app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
+  var newPatient = req.body.patient;
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403).send({ message: "Invalid Login"}); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
-        console.log(result);
-        // res.json(result.recordset);
+        const result = await sql.query`insert into Patient values(
+          NewID(),
+          ${newPatient.FirstName},
+          ${newPatient.LastName},
+          ${newPatient.DOB},
+          ${newPatient.Phone},
+          ${newPatient.Sex},
+          ${newPatient.Address},
+          ${newPatient.EmergencyContact},
+          ${newPatient.EmergencyContactPhone},
+          ${newPatient.Prescriptions},
+          ${newPatient.PrescriptionHistory},
+          ${newPatient.HealthHistory},
+          ${newPatient.FamilyHistory},
+          ${newPatient.Diagnoses})`;
+        res.status(200).send({ message: "success"});
       } catch (err) {
-        console.log('Error in /post\n', err);
-        res.send(500, err);
+        res.status(500).send({ message: err });
       }
     }
   });
