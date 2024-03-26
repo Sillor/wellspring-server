@@ -5,7 +5,7 @@ const verifyToken = require('./components/verifyToken');
 const express = require('express'); // ExpressJS Framework
 const app = express(); // Application
 const cors = require('cors'); // Cross-origin resource sharing
-
+var http = require('http'), https = require('https'), fs = require('fs');
 // Authentication Requirements and Configs
 const jwt = require('jsonwebtoken'); // JWT for auth
 const bcrypt = require("bcrypt") // Hashing library for Auth
@@ -40,24 +40,23 @@ app.use(cors());
 // Login of existing users
 app.use('/login', async (req, res) => {
   var date = new Date();
-  var username = '';
-  try {
-    var username = req.body.username;
-  } catch (error) {
-    console.log(error);
-  }
+  var username = req.body.username;
+  var password = req.body.password;
 
   try {
     await sql.connect(sqlConfig);
     let query = `select password from Users WHERE username like '${username}'`;
-    const dboPassword = await sql.query(query) //`select password from Users WHERE username like '${req.body.username}'`// where username like "${req.body.username}"`;
-    const valid = await bcrypt.compare(req.body.password, dboPassword.recordset[0].password);
-
+    var dboPassword = await sql.query(query) //`select password from Users WHERE username like '${req.body.username}'`// where username like "${req.body.username}"`;
+    if (dboPassword.rowsAffected == 0) {
+      res.status(401).json({ message: 'User does not exist' });
+      return;
+    }
+    var valid = await bcrypt.compare(password, dboPassword.recordset[0].password);
     if (valid === false) {
       console.log("denied");
-      res.send(401);
+      res.status(401).json({ message: 'Bad Credentials' })
     } else {
-      let data = {
+      var data = {
         signInTime: Date.now(),
         username,
       }
@@ -82,7 +81,6 @@ app.use('/patients', verifyToken.verifyToken, (req, res) => {
       try {
         await sql.connect(sqlConfig);
         const result = await sql.query`select * from Patient`;
-        console.log(result);
         res.status(200).json({ message: 'success', patients: result.recordset });
       } catch (err) {
         console.log('Error in /post\n', err);
@@ -166,18 +164,23 @@ app.use('/prescriptions', verifyToken.verifyToken, (req, res) => {
 
 // Create a new user
 app.use('/createuser', verifyToken.verifyToken, (req, res) => {
+  console.log("Creating a user");
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403).json({message: "Invalid User"}); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
-        console.log(result);
+        var password = await bcrypt.hash(req.body.Password, saltRounds);
+        const result = await sql.query`insert into dbo.Users values(${req.body.Username},${password},${req.body.Email},${req.body.First_Name},${req.body.Surname},${req.body.Role})`;
+
+        if (result.rowsAffected = 1) {
+          res.status(200).json({ message: "Success!" });
+        }
         // res.json(result.recordset);
       } catch (err) {
         console.log('Error in /post\n', err);
-        res.send(500, err);
+        res.status(500).json({ message: err });
       }
     }
   });
@@ -188,7 +191,7 @@ app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
   var newPatient = req.body.patient;
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.status(403).send({ message: "Invalid Login"}); // 403 'Forbidden' (invalid token)
+      res.status(403).send({ message: "Invalid Login" }); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -207,7 +210,7 @@ app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
           ${newPatient.HealthHistory},
           ${newPatient.FamilyHistory},
           ${newPatient.Diagnoses})`;
-        res.status(200).send({ message: "success"});
+        res.status(200).send({ message: "success" });
       } catch (err) {
         res.status(500).send({ message: err });
       }
@@ -293,6 +296,22 @@ app.use('/createprescription', verifyToken.verifyToken, (req, res) => {
 
 
 
+http.createServer(app).listen(5174);
 
+https.createServer({
+  key: fs.readFileSync('./ssl/privkey3.pem'),
+  cert: fs.readFileSync('./ssl/cert3.pem'),
+  // ca: certificateAuthority,
+  ciphers: [
+    "ECDHE-RSA-AES128-SHA256",
+    "DHE-RSA-AES128-SHA256",
+    "AES128-GCM-SHA256",
+    "RC4",
+    "HIGH",
+    "!MD5",
+    "!aNULL"
+  ].join(':'),
+}, app).listen(5175);
+// https.createServer(app).listen(5175);
 // Start Server
-app.listen(5174, () => console.log('API is running on http://localhost:5174'));
+// app.listen(5174, () => console.log('API is running on http://localhost:5174'));
