@@ -89,6 +89,26 @@ app.use('/patients', verifyToken.verifyToken, (req, res) => {
     }
   });
 });
+// Get list of all patients
+app.use('/patient/', verifyToken.verifyToken, (req, res) => {
+  console.log('single patient ping');
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`select * from Patient 
+          where Patient.FirstName = '${req.body.FirstName}'
+          and Patient.LastName = '${req.body.LastName}'
+          and Patient.DOB = '${req.body.DOB}'`;
+        res.status(200).json({ message: 'success', patient: result.recordset });
+      } catch (err) {
+        res.status(500).json({ message: err });
+      }
+    }
+  });
+});
 
 // Get list of all appointments
 app.use('/appointments', verifyToken.verifyToken, (req, res) => {
