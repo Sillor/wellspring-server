@@ -3,3 +3,4 @@ ssl/cert3.pem
 ssl/chain3.pem
 ssl/privkey3.pem
 ssl/fullchain3.pem
+sqluser.json

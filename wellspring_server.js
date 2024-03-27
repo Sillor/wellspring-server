@@ -13,11 +13,17 @@ const saltRounds = 10 // Salt config for BCrypt
 
 // MSSQL and its config
 const sql = require('mssql');
+const data = require("./sqluser.json");
+
 const sqlConfig = {
-  user: 'app',
-  password: 'Pfc123!',
-  database: 'Testing',
-  server: 'localhost',
+  user: data[0].user,
+  // user: "app",
+  password: data[0].password,
+  // password: "Pfc123!",
+  database: data[0].database,
+  // database: "testing",
+  server: data[0].server,
+  // server: "localhost",
   pool: {
     max: 10,
     min: 0,
@@ -28,6 +34,7 @@ const sqlConfig = {
     trustServerCertificate: true // change to true for local dev / self-signed certs
   }
 }
+
 
 // App icon TBD
 // app.use('/favicon.ico', epxress.static('./favicon.ico'))
@@ -69,6 +76,24 @@ app.use('/login', async (req, res) => {
     console.log(error);
     res.json({ message: error });
   }
+})
+
+
+// Login of existing users
+app.use('/verify', async (req, res) => {
+  console.log('verifying');
+  
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.status(200).json({ message: 'failure' }); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        res.status(200).json({ message: 'success' });
+      } catch (error) {
+        res.status(500).json({ message: error });
+      }
+    }
+  });
 })
 
 // Get list of all patients
