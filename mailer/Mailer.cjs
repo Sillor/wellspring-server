@@ -31,5 +31,4 @@ function sendConfirmation(recipient, link) {
     });
 }
 
-sendConfirmation('egorstrah95@gmail.com', 'http://localhost:3000/reset/123456');
 module.exports = { sendConfirmation };
