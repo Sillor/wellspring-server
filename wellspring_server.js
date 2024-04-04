@@ -333,9 +333,8 @@ app.use('/updateuser/', (req, res) => {
     } else {
       try {
         await sql.connect(sqlConfig);
-        var password = await bcrypt.hash(req.body.Password, saltRounds);
-        const result = await sql.query`UPDATE dbo.Users
-          VALUES (${req.body.Username},${req.body.Password},${req.body.Email},${req.body.First_Name},${req.body.Surname},${req.body.Role})
+        const result = await sql.query`UPDATE dbo.Users (Email, First_Name, Surname, Role)
+          VALUES (${req.body.Email},${req.body.First_Name},${req.body.Surname},${req.body.Role})
           WHERE dbo.Users.Username = '${req.body.username}'`;
         if (result.rowsAffected = 1) {
           res.status(200).json({ message: "Success!" });
@@ -347,16 +346,17 @@ app.use('/updateuser/', (req, res) => {
   });
 });
 // Update existing patient
-app.use('/updatepatient/:id', (req, res) => {
+app.use('/updatepatient/', (req, res) => {
+
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.status(403).send({ message: "Access Denied" }); // 403 'Forbidden'
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`UPDATE dbo.Patient
+        await sql.query`UPDATE dbo.Patient
           VALUES (
-            ${req.params},
+            ${req.body.id},
             ${newPatient.FirstName},
             ${newPatient.LastName},
             ${newPatient.DOB},
@@ -370,7 +370,7 @@ app.use('/updatepatient/:id', (req, res) => {
             ${newPatient.HealthHistory},
             ${newPatient.FamilyHistory},
             ${newPatient.Diagnoses})
-          WHERE dbo.Patient.id = '${req.params}'`;
+          WHERE dbo.Patient.id = '${req.body.id}'`;
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.status(500).send({ message: err });
@@ -379,22 +379,24 @@ app.use('/updatepatient/:id', (req, res) => {
   });
 });
 // Update existing appointment
-app.use('/updateappointment/:id', (req, res) => {
+app.use('/updateappointment/', (req, res) => {
+
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`UPDATE dbo.Appointment
+        await sql.query`UPDATE dbo.Appointment
           VALUES(
-            ${Username},
-            ${Password},
-            ${Email},
-            ${First_Name},
-            ${Surname},
-            ${Role})
-          WHERE dbo.Appointment.id = '${req.params}`;
+            ${req.body.id},
+            ${req.body.patientid},
+            ${req.body.scheduledDate},
+            ${req.body.createdDate},
+            ${req.body.lastModified},
+            ${req.body.status})
+          WHERE dbo.Appointment.id = '${req.body.id}`;
+        res.status(200).send({ message: "success" });
       } catch (err) {
         res.send(500, err);
       }
@@ -402,7 +404,7 @@ app.use('/updateappointment/:id', (req, res) => {
   });
 });
 // Update existing message
-app.use('/updatemessage/:id', (req, res) => {
+app.use('/updatemessage/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
@@ -411,13 +413,13 @@ app.use('/updatemessage/:id', (req, res) => {
         await sql.connect(sqlConfig);
         const result = await sql.query`UPDATE dbo.Message
           VALUES(
-            ${Username},
-            ${Password},
-            ${Email},
-            ${First_Name},
-            ${Surname},
-            ${Role})
-          WHERE dbo.Message.id = '${req.params}'`;
+            ${req.body.id},
+            ${req.body.patientid},
+            ${req.body.messageHeader},
+            ${req.body.messageContent},
+            ${req.body.createdDate},
+            ${req.body.lastModified})
+          WHERE dbo.Message.id = '${req.body.id}'`;
       } catch (err) {
         res.send(500, err);
       }
@@ -425,7 +427,7 @@ app.use('/updatemessage/:id', (req, res) => {
   });
 });
 // Update existing lab
-app.use('/updatelab/:id', (req, res) => {
+app.use('/updatelab/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
@@ -434,13 +436,14 @@ app.use('/updatelab/:id', (req, res) => {
         await sql.connect(sqlConfig);
         const result = await sql.query`UPDATE dbo.Lab
           VALUES(
-            ${Username},
-            ${Password},
-            ${Email},
-            ${First_Name},
-            ${Surname},
-            ${Role})
-          WHERE dbo.Lab.id = '${req.params}'`;
+            ${req.body.id},
+            ${req.body.patientid},
+            ${req.body.lab},
+            ${req.body.orderedDate},
+            ${req.body.createdDate},
+            ${req.body.status}
+            ${req.body.results})
+          WHERE dbo.Lab.id = '${req.body.id}'`;
       } catch (err) {
         res.send(500, err);
       }
@@ -448,7 +451,7 @@ app.use('/updatelab/:id', (req, res) => {
   });
 });
 // Update existing prescription
-app.use('/updateprescription/:id', (req, res) => {
+app.use('/updateprescription/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
@@ -457,13 +460,13 @@ app.use('/updateprescription/:id', (req, res) => {
         await sql.connect(sqlConfig);
         const result = await sql.query`UPDATE dbo.Prescription
           VALUES(
-            ${Username},
-            ${Password},
-            ${Email},
-            ${First_Name},
-            ${Surname},
-            ${Role})
-          WHERE dbo.Prescription.id = ''${req.params}`;
+            ${req.body.id},
+            ${req.body.patientid},
+            ${req.body.prescriptionName},
+            ${req.body.orderDate},
+            ${req.body.createdDate},
+            ${req.body.dosage})
+          WHERE dbo.Prescription.id = ''${req.body.id}`;
       } catch (err) {
         res.send(500, err);
       }
@@ -474,16 +477,15 @@ app.use('/updateprescription/:id', (req, res) => {
 
 // #region Deletes
 // Delete existing user
-app.use('/deleteuser/:id', (req, res) => {
+app.use('/deleteuser/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.status(403).json({ message: "Access Denied" }); // 403 'Forbidden'
     } else {
       try {
         await sql.connect(sqlConfig);
-        var password = await bcrypt.hash(req.body.Password, saltRounds);
         const result = await sql.query`DELETE FROM dbo.Users
-          WHERE dbo.Users.id = '${req.params}'`;
+          WHERE dbo.Users.id = '${req.body.id}'`;
         if (result.rowsAffected = 1) {
           res.status(200).json({ message: "Success!" });
         }
@@ -494,7 +496,7 @@ app.use('/deleteuser/:id', (req, res) => {
   });
 });
 // Delete existing patient
-app.use('/deletepatient/:id', (req, res) => {
+app.use('/deletepatient/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.status(403).send({ message: "Access Denied" }); // 403 'Forbidden'
@@ -502,7 +504,7 @@ app.use('/deletepatient/:id', (req, res) => {
       try {
         await sql.connect(sqlConfig);
         const result = await sql.query`DELETE FROM dbo.Patient
-          WHERE dbo.Patient.id = '${req.params}'`;
+          WHERE dbo.Patient.id = '${req.body.id}'`;
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.status(500).send({ message: err });
@@ -511,7 +513,7 @@ app.use('/deletepatient/:id', (req, res) => {
   });
 });
 // Delete existing appointment
-app.use('/deleteappointment/:id', (req, res) => {
+app.use('/deleteappointment/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
@@ -519,7 +521,7 @@ app.use('/deleteappointment/:id', (req, res) => {
       try {
         await sql.connect(sqlConfig);
         const result = await sql.query`DELETE FROM dbo.Appointment
-          WHERE dbo.Appointment.id = '${req.params}`;
+          WHERE dbo.Appointment.id = '${req.body.id}`;
       } catch (err) {
         res.send(500, err);
       }
@@ -527,7 +529,7 @@ app.use('/deleteappointment/:id', (req, res) => {
   });
 });
 // Delete existing message
-app.use('/deletemessage/:id', (req, res) => {
+app.use('/deletemessage/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
@@ -535,7 +537,7 @@ app.use('/deletemessage/:id', (req, res) => {
       try {
         await sql.connect(sqlConfig);
         const result = await sql.query`DELETE FROM dbo.Message
-          WHERE dbo.Message.id = '${req.params}'`;
+          WHERE dbo.Message.id = '${req.body.id}'`;
       } catch (err) {
         res.send(500, err);
       }
@@ -543,7 +545,7 @@ app.use('/deletemessage/:id', (req, res) => {
   });
 });
 // Delete existing lab
-app.use('/deletelab/:id', (req, res) => {
+app.use('/deletelab/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
@@ -551,7 +553,7 @@ app.use('/deletelab/:id', (req, res) => {
       try {
         await sql.connect(sqlConfig);
         const result = await sql.query`DELETE FROM dbo.Lab
-          WHERE dbo.Lab.id = '${req.params}'`;
+          WHERE dbo.Lab.id = '${req.body.id}'`;
       } catch (err) {
         res.send(500, err);
       }
@@ -559,7 +561,7 @@ app.use('/deletelab/:id', (req, res) => {
   });
 });
 // Delete existing prescription
-app.use('/deleteprescription/:id', (req, res) => {
+app.use('/deleteprescription/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
@@ -567,7 +569,7 @@ app.use('/deleteprescription/:id', (req, res) => {
       try {
         await sql.connect(sqlConfig);
         const result = await sql.query`DELETE FROM dbo.Prescription
-          WHERE dbo.Prescription.id = ''${req.params}`;
+          WHERE dbo.Prescription.id = ''${req.body.id}`;
       } catch (err) {
         res.send(500, err);
       }
