@@ -37,6 +37,16 @@ const sqlConfig = {
 app.use(express.json());
 app.use(cors());
 
+// #region Vars for SQL
+var allowedPrescriptionColumns = ["id", "patientid", "prescriptionName", "orderDate", "dosage"] // PRESCRIPTION
+var allowedLabColumns = ["id", "patientid", "labName", "orderDate", "status", "results"] // LAB
+var allowedMessageColumns = ["id", "patientid", "messageHeader", "messageContents", "readStatus"] // MESSAGE
+var allowedAppointmentColumns = ["id", "patientid", "scheduledDate", "status"] // APPOINTMENT
+var allowedUserColumns = ["username", "password", "email", "firstName", "lastName", "role"] // USER
+var allowedPatientColumns = ["id", "firstName", "lastName", "DOB", "phone", "sex", "address", "emergencyContact", "emergencyContactPhone", "prescriptions",
+  "prescriptionHistory", "healthHistory", "familyHistory", "diagnoses"] // PATIENT
+// #endregion
+
 // #region AuthRegion
 // Login of existing users
 app.use('/login', async (req, res) => {
@@ -567,9 +577,32 @@ app.use('/deleteprescription/', (req, res) => {
       res.sendStatus(403); // 403 'Forbidden'
     } else {
       try {
-        await sql.connect(sqlConfig);
-        const result = await sql.query`DELETE FROM dbo.Prescription
-          WHERE dbo.Prescription.id = ''${req.body.id}`;
+        let
+          stmts = [],
+          values = [];
+
+        for (let c of allowedPrescriptionColumns) {
+          if (c in req.body) {  //check if there is a value for that column in the request body
+            stmts.push(`${c} = ?`),
+              values.push(req.body[c]);
+          }
+        }
+
+        if (stmts.length == 0) {
+          return res.send(204).send({ message: "No Content Submitted" }); // 204 "No Content"
+        }
+
+        values.push(cid);
+        await sql.query(`UPDATE Company_Master SET ${stmts.join(", ")} WHERE company_id = ?`, values, (err, result) => {
+          
+        });
+
+
+
+        // await sql.connect(sqlConfig);
+        // await sql.query`DELETE FROM dbo.Prescription
+          // WHERE dbo.Prescription.id = ''${req.body.id}`;
+        res.status(200).send({ message: "Successful" });
       } catch (err) {
         res.send(500, err);
       }
@@ -578,13 +611,7 @@ app.use('/deleteprescription/', (req, res) => {
 });
 // #endregion
 
-
-
-
-
-
-
-
+// #region StartServer
 http.createServer(app).listen(5174);
 
 https.createServer({
@@ -601,3 +628,4 @@ https.createServer({
     "!aNULL"
   ].join(':'),
 }, app).listen(5175);
+// #endregion
