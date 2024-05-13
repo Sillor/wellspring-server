@@ -1,0 +1,17 @@
+[
+    {
+        "user": "app",
+        "password": "Pfc123!",
+        "database": "Testing",
+        "server": "localhost",
+        "pool": {
+            "max": 10,
+            "min": 0,
+            "idleTimeoutMillis": 3000
+        },
+        "options": {
+            "encrypt": false,
+            "trustServerCertificate": true
+        }
+    }
+]
