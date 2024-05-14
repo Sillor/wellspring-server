@@ -8,13 +8,14 @@ const cors = require('cors'); // Cross-origin resource sharing
 var http = require('http'), https = require('https'), fs = require('fs');
 // Authentication Requirements and Configs
 const jwt = require('jsonwebtoken'); // JWT for authentication
-const saltRounds = 10 // Salt config for BCrypt
+const saltRounds = 10; // Salt config for BCrypt
 // MSSQL and its config
 const sql = require('mssql');
 const data = require("./sqluser.json");
 const e = require('express');
 const { verify } = require('crypto');
 const nodemon = require('nodemon');
+const mailer = require('./mailer/Mailer.cjs');
 const sqlConfig = {
   user: data[0].user,
   // user: "app",
@@ -33,21 +34,21 @@ const sqlConfig = {
     encrypt: false,
     trustServerCertificate: true // change to true for local dev / self-signed certs
   }
-}
+};
 // #endregion
 
 app.use(express.json());
 app.use(cors());
 
 // #region Vars for SQL
-var allowedDoctorColumns = ["id", "activecode", "invitedby"] // Doctor Codes
-var allowedPrescriptionColumns = ["id", "Patientid", "PrescriptionName", "OrderDate", "Dosage", "Active"] // PRESCRIPTION
-var allowedLabColumns = ["id", "Patientid", "Lab", "OrderDate", "Status", "Results"] // LAB
-var allowedMessageColumns = ["id", "Patientid", "MessageHeader", "MessageContents", "Status"] // MESSAGE
-var allowedAppointmentColumns = ["id", "Patientid", "ScheduledDate", "Status", "Username", "Notes", "Time", "Care"] // APPOINTMENT
-var allowedUserColumns = ["Username", "Password", "Email", "FirstName", "LastName", "Role"] // USER
+var allowedDoctorColumns = ["id", "activecode", "invitedby"]; // Doctor Codes
+var allowedPrescriptionColumns = ["id", "Patientid", "PrescriptionName", "OrderDate", "Dosage", "Active"]; // PRESCRIPTION
+var allowedLabColumns = ["id", "Patientid", "Lab", "OrderDate", "Status", "Results"]; // LAB
+var allowedMessageColumns = ["id", "Patientid", "MessageHeader", "MessageContents", "Status"]; // MESSAGE
+var allowedAppointmentColumns = ["id", "Patientid", "ScheduledDate", "Status", "Username", "Notes", "Time", "Care"]; // APPOINTMENT
+var allowedUserColumns = ["Username", "Password", "Email", "FirstName", "LastName", "Role"]; // USER
 var allowedPatientColumns = ["id", "FirstName", "LastName", "DOB", "Phone", "Sex", "Address", "EmergencyContact", "EmergencyContactPhone", "Prescriptions",
-  "PrescriptionHistory", "HealthHistory", "FamilyHistory", "Diagnoses", "BloodType", "RHFactor", "PreviousDiagnosis", "Allergies"] // PATIENT
+  "PrescriptionHistory", "HealthHistory", "FamilyHistory", "Diagnoses", "BloodType", "RHFactor", "PreviousDiagnosis", "Allergies"]; // PATIENT
 // #endregion
 
 // #region Functions
@@ -57,13 +58,13 @@ async function createQuery(input, req, user, patient) {
   for (let c of input) {
     if (c in req.body) {
       if (c === 'Username' && user === false) {
-        void(0);
+        void (0);
       } else if (c === 'id' && patient === false) {
-        void(0);
+        void (0);
         // let pw = await bcrypt.hash(req.body[c], saltRounds)
         // stmts.push(`${c} = '${pw}'`)
       } else {
-        stmts.push(`${c} = '${req.body[c]}'`)
+        stmts.push(`${c} = '${req.body[c]}'`);
       }
     }
     console.log(stmts);
@@ -83,55 +84,55 @@ app.use('/login', async (req, res) => {
   try {
     await sql.connect(sqlConfig);
     let query = `SELECT Password, Email from Users WHERE Username like '${username}'`;
-    var dboPassword = await sql.query(query)
+    var dboPassword = await sql.query(query);
     if (dboPassword.rowsAffected == 0) {
       console.log(`denied ${username} from ${req.socket.remoteAddress} at\t ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`);
       res.status(401).json({ message: 'User does not exist' });
       return;
     }
     if (password === dboPassword.recordset[0].Password) {
-      valid = true
-    } else valid = false
+      valid = true;
+    } else valid = false;
     var email = dboPassword.recordset[0].Email;
 
     if (valid === false) {
       console.log(`denied ${username} from ${req.socket.remoteAddress} at\t ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`);
-      res.status(401).json({ message: 'Bad Credentials' })
+      res.status(401).json({ message: 'Bad Credentials' });
     } else {
       var data = {
         signInTime: Date.now(),
         username,
         email
-      }
+      };
 
       const token = jwt.sign(data, 'secretkey', { expiresIn: '60m' }); // JWT that expires in 60 minutes
       console.log(username, '\tlogging in from\t', req.socket.remoteAddress, '\tat\t', date.toLocaleDateString(), ' ', date.toLocaleTimeString());
       // var decoded = jwt.decode(token);
       // console.log(`token created : ${JSON.stringify(decoded.email)}`);
-      res.status(200).json({ message: 'success', token })
+      res.status(200).json({ message: 'success', token });
     }
   } catch (error) {
     console.log(error);
     res.json({ message: error });
   }
-})
+});
 // Login of existing users
 app.use('/verify', verifyToken.verifyToken, async (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
-    console.log(`verifying `)
+    console.log(`verifying `);
     if (err) {
-      console.log(`bad token?`)
+      console.log(`bad token?`);
       res.status(403).json({ message: 'failure' }); // 403 'Forbidden' (invalid token)
     } else {
       try {
-        console.log('good')
+        console.log('good');
         res.status(200).json({ message: 'success' });
       } catch (error) {
         res.status(500).json({ message: 'failure' });
       }
     }
   });
-})
+});
 // #endregion
 
 // #region Gets
@@ -340,7 +341,13 @@ app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
       try {
         let stmts = await createQuery(allowedPatientColumns, req, false, true);
         await sql.connect(sqlConfig);
-        const result = await sql.query(`INSERT INTO dbo.Patient VALUES(NewID(),${stmts.join(", ")})'`)
+        const result = await sql.query(`INSERT INTO dbo.Patient VALUES(NewID(),${stmts.join(", ")})'`);
+
+        const emailQuery = `SELECT Email FROM dbo.Users WHERE Username = '${authData.username}'`;
+        const emailResult = await sql.query(emailQuery);
+        const email = emailResult.recordset[0].Email;
+        mailer.sendPatientEmail(email, req.body);
+
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.status(500).send({ message: err });
@@ -358,7 +365,13 @@ app.use('/createappointment', verifyToken.verifyToken, (req, res) => {
       try {
         let stmts = await createQuery(allowedAppointmentColumns, req, false, false);
         await sql.connect(sqlConfig);
-        const result = await sql.query(`INSERT INTO dbo.Appointments VALUES(NewID(),${stmts.join(", ")})'`)
+        const result = await sql.query(`INSERT INTO dbo.Appointments VALUES(NewID(),${stmts.join(", ")})'`);
+
+        const emailQuery = `SELECT Email FROM dbo.Users WHERE Username = '${authData.username}'`;
+        const emailResult = await sql.query(emailQuery);
+        const email = emailResult.recordset[0].Email;
+        mailer.sendAppointmentEmail(email, req.body);
+
         res.status(200).send({ message: "success" });
       } catch (err) {
         console.log('Error in create appointment\n', err);
@@ -377,7 +390,7 @@ app.use('/createmessage', verifyToken.verifyToken, (req, res) => {
       try {
         let stmts = await createQuery(allowedMessageColumns, req, false, false);
         await sql.connect(sqlConfig);
-        const result = await sql.query(`INSERT INTO dbo.Messages VALUES(NewID(), ${stmts.join(", ")})'`)
+        const result = await sql.query(`INSERT INTO dbo.Messages VALUES(NewID(), ${stmts.join(", ")})'`);
         res.status(200).send({ message: "success" });
       } catch (err) {
         console.log('Error in /post\n', err);
@@ -396,7 +409,13 @@ app.use('/createlab', verifyToken.verifyToken, (req, res) => {
       try {
         let stmts = await createQuery(allowedLabColumns, req, false, false);
         await sql.connect(sqlConfig);
-        const result = await sql.query(`INSERT INTO dbo.Lab VALUES(NewID(), ${stmts.join(", ")})'`)
+        const result = await sql.query(`INSERT INTO dbo.Lab VALUES(NewID(), ${stmts.join(", ")})'`);
+
+        const emailQuery = `SELECT Email FROM dbo.Users WHERE Username = '${authData.username}'`;
+        const emailResult = await sql.query(emailQuery);
+        const email = emailResult.recordset[0].Email;
+        mailer.sendLabOrderEmail(email, req.body);
+
         res.status(200).send({ message: "success" });
       } catch (err) {
         console.log('Error in /post\n', err);
@@ -415,7 +434,7 @@ app.use('/createprescription', verifyToken.verifyToken, (req, res) => {
       try {
         let stmts = await createQuery(allowedPrescriptionColumns, req, false, false);
         await sql.connect(sqlConfig);
-        const result = await sql.query(`INSERT INTO dbo.Prescription VALUES(NewID(), ${stmts.join(", ")})'`)
+        const result = await sql.query(`INSERT INTO dbo.Prescription VALUES(NewID(), ${stmts.join(", ")})'`);
         res.status(200).send({ message: "success" });
       } catch (err) {
         console.log('Error in /post\n', err);
@@ -437,7 +456,7 @@ app.use('/updatedoctorcode', verifyToken.verifyToken, (req, res) => {
       try {
         let stmts = await createQuery(allowedDoctorColumns, req, false, false);
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.DoctorCodes SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.DoctorCodes SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`);
         res.status(200).json({ message: "Success!" });
       } catch (error) {
         console.log(error);
@@ -456,7 +475,7 @@ app.use('/updateuser', verifyToken.verifyToken, (req, res) => {
       try {
         let stmts = await createQuery(allowedUserColumns, req, true, false);
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.DoctorCodes SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.DoctorCodes SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`);
         res.status(200).json({ message: "Success!" });
       } catch (error) {
         console.log(error);
@@ -475,7 +494,7 @@ app.use('/updatepatient', verifyToken.verifyToken, (req, res) => {
       try {
         let stmts = await createQuery(allowedPatientColumns, req, false, true);
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Patients SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Patients SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`);
         res.status(200).send({ message: "success" });
       } catch (err) {
         console.log(err);
@@ -492,13 +511,13 @@ app.use('/updateappointment/', verifyToken.verifyToken, (req, res) => {
     } else {
       try {
         let stmts = await createQuery(allowedAppointmentColumns, req);
-        stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`)
+        stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`);
 
         if (stmts.length == 0) {
           return res.sendStatus(204); //nothing to do
         }
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Appointments SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Appointments SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`);
         res.status(200).send({ message: "success" });
       } catch (err) {
         console.log(err);
@@ -515,13 +534,13 @@ app.use('/updatemessage/', verifyToken.verifyToken, (req, res) => {
     } else {
       try {
         let stmts = await createQuery(allowedMessageColumns, req);
-        stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`)
+        stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`);
 
         if (stmts.length == 0) {
           return res.sendStatus(204); //nothing to do
         }
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Messages SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Messages SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`);
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.send(500, err);
@@ -537,13 +556,13 @@ app.use('/updatelab/', verifyToken.verifyToken, (req, res) => {
     } else {
       try {
         let stmts = await createQuery(allowedLabColumns, req);
-        stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`)
+        stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`);
 
         if (stmts.length <= 1) {
           return res.sendStatus(204); //nothing to do
         }
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Labs SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Labs SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`);
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.send(500, err);
@@ -559,13 +578,13 @@ app.use('/updateprescription/', verifyToken.verifyToken, (req, res) => {
     } else {
       try {
         let stmts = await createQuery(allowedPrescriptionColumns, req);
-        stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`)
+        stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`);
 
         if (stmts.length <= 1) {
           return res.sendStatus(204); //nothing to do
         }
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Prescriptions SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Prescriptions SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`);
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.send(500, err);
