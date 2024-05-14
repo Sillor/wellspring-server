@@ -6,3 +6,4 @@ ssl/privkey3.pem
 ssl/fullchain3.pem
 sqluser.json
 sqluser.json
+tester.js
