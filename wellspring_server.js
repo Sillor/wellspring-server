@@ -7,14 +7,14 @@ const app = express(); // Application
 const cors = require('cors'); // Cross-origin resource sharing
 var http = require('http'), https = require('https'), fs = require('fs');
 // Authentication Requirements and Configs
-const jwt = require('jsonwebtoken'); // JWT for auth
-const bcrypt = require("bcrypt") // Hashing library for Auth
+const jwt = require('jsonwebtoken'); // JWT for authentication
 const saltRounds = 10 // Salt config for BCrypt
 // MSSQL and its config
 const sql = require('mssql');
 const data = require("./sqluser.json");
 const e = require('express');
 const { verify } = require('crypto');
+const nodemon = require('nodemon');
 const sqlConfig = {
   user: data[0].user,
   // user: "app",
@@ -40,24 +40,28 @@ app.use(express.json());
 app.use(cors());
 
 // #region Vars for SQL
-var allowedPrescriptionColumns = ["id", "Patientid", "PrescriptionName", "OrderDate", "Dosage"] // PRESCRIPTION
+var allowedDoctorColumns = ["id", "activecode", "invitedby"] // Doctor Codes
+var allowedPrescriptionColumns = ["id", "Patientid", "PrescriptionName", "OrderDate", "Dosage", "Active"] // PRESCRIPTION
 var allowedLabColumns = ["id", "Patientid", "Lab", "OrderDate", "Status", "Results"] // LAB
 var allowedMessageColumns = ["id", "Patientid", "MessageHeader", "MessageContents", "Status"] // MESSAGE
-var allowedAppointmentColumns = ["id", "Patientid", "ScheduledDate", "Status", "Username", "Notes", ""] // APPOINTMENT
-var allowedUserColumns = ["Username", "Password", "Email", "FirstName", "LastName", "Role", "PatientList"] // USER
+var allowedAppointmentColumns = ["id", "Patientid", "ScheduledDate", "Status", "Username", "Notes", "Time", "Care"] // APPOINTMENT
+var allowedUserColumns = ["Username", "Password", "Email", "FirstName", "LastName", "Role"] // USER
 var allowedPatientColumns = ["id", "FirstName", "LastName", "DOB", "Phone", "Sex", "Address", "EmergencyContact", "EmergencyContactPhone", "Prescriptions",
-  "PrescriptionHistory", "HealthHistory", "FamilyHistory", "Diagnoses"] // PATIENT
+  "PrescriptionHistory", "HealthHistory", "FamilyHistory", "Diagnoses", "BloodType", "RHFactor", "PreviousDiagnosis", "Allergies"] // PATIENT
 // #endregion
 
 // #region Functions
-async function createQuery(input, req) {
+async function createQuery(input, req, user, patient) {
   var stmts = [];
 
   for (let c of input) {
     if (c in req.body) {
-      if (c === 'Password') {
-        let pw = await bcrypt.hash(req.body[c], saltRounds)
-        stmts.push(`${c} = '${pw}'`)
+      if (c === 'Username' && user === false) {
+        void(0);
+      } else if (c === 'id' && patient === false) {
+        void(0);
+        // let pw = await bcrypt.hash(req.body[c], saltRounds)
+        // stmts.push(`${c} = '${pw}'`)
       } else {
         stmts.push(`${c} = '${req.body[c]}'`)
       }
@@ -75,16 +79,19 @@ app.use('/login', async (req, res) => {
   var date = new Date();
   var username = req.body.username;
   var password = req.body.password;
-  
+
   try {
     await sql.connect(sqlConfig);
     let query = `SELECT Password, Email from Users WHERE Username like '${username}'`;
     var dboPassword = await sql.query(query)
     if (dboPassword.rowsAffected == 0) {
+      console.log(`denied ${username} from ${req.socket.remoteAddress} at\t ${date.toLocaleDateString()} ${date.toLocaleTimeString()}`);
       res.status(401).json({ message: 'User does not exist' });
       return;
     }
-    var valid = await bcrypt.compare(password, dboPassword.recordset[0].Password);
+    if (password === dboPassword.recordset[0].Password) {
+      valid = true
+    } else valid = false
     var email = dboPassword.recordset[0].Email;
 
     if (valid === false) {
@@ -128,6 +135,24 @@ app.use('/verify', verifyToken.verifyToken, async (req, res) => {
 // #endregion
 
 // #region Gets
+// Get list of doctor codes
+app.use('/doctorcodes', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      console.log(err);
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`SELECT * FROM dbo.DoctorCodes`;
+        res.json(result.recordset);
+      } catch (err) {
+        res.send(500, err);
+      }
+    }
+  });
+});
+
 // Get list of all patients
 app.use('/patients', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
@@ -136,7 +161,7 @@ app.use('/patients', verifyToken.verifyToken, (req, res) => {
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`SELECT * FROM dbo.Patient`;
+        const result = await sql.query`SELECT * FROM dbo.Patients`;
         res.status(200).json({ message: 'success', patients: result.recordset });
       } catch (err) {
         res.send(500, err);
@@ -145,15 +170,15 @@ app.use('/patients', verifyToken.verifyToken, (req, res) => {
   });
 });
 // Get unique patient
-app.use('/patient/', verifyToken.verifyToken, (req, res) => {
-  
+app.use('/patient', verifyToken.verifyToken, (req, res) => {
+
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`SELECT * FROM dbo.Patient WHERE id = ${req.body.id}`;
+        const result = await sql.query`SELECT * FROM dbo.Patients WHERE id = ${req.body.id}`;
         res.status(200).json({ message: 'success', patient: result.recordset });
       } catch (err) {
         res.status(500).json({ message: err });
@@ -171,7 +196,7 @@ app.use('/appointments', verifyToken.verifyToken, (req, res) => {
         await sql.connect(sqlConfig);
         const user = jwt.decode(req.token);
         console.log(user.username);
-        const result = await sql.query`SELECT * FROM dbo.Appointment WHERE Username = ${user.username}`;
+        const result = await sql.query`SELECT * FROM dbo.Appointments WHERE Username = ${user.username}`;
         res.json(result.recordset);
       } catch (err) {
         console.log(err);
@@ -228,9 +253,63 @@ app.use('/prescriptions', verifyToken.verifyToken, (req, res) => {
     }
   });
 });
+
+// Get list of all users
+app.use('/users', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`SELECT * FROM dbo.Users`;
+        res.json(result.recordset);
+      } catch (err) {
+        res.send(500, err);
+      }
+    }
+  });
+});
+
+// Get unique user
+app.use('/user', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`SELECT * FROM dbo.Users WHERE Username = ${req.body.Username}`;
+        res.json(result.recordset);
+      } catch (err) {
+        res.send(500, err);
+      }
+    }
+  }
+  );
+});
 // #endregion
 
 // #region Creates
+// Create a new doctor code
+app.use('/createdoctorcode', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      console.log(err);
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        let stmts = await createQuery(allowedDoctorColumns, req, false, false);
+        await sql.connect(sqlConfig);
+        const result = await sql.query`INSERT INTO dbo.DoctorCodes VALUES(NewID(), ${stmts.join(", ")})`;
+        res.sendStatus(200).json({ message: 'success' });
+      } catch (err) {
+        res.send(500, err);
+      }
+    }
+  });
+});
+
 // Create a new user
 app.use('/createuser', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
@@ -238,43 +317,30 @@ app.use('/createuser', verifyToken.verifyToken, (req, res) => {
       res.status(403).json({ message: "Invalid User" }); // 403 'Forbidden' (invalid token)
     } else {
       try {
+        console.log(req.body);
+        let stmts = await createQuery(allowedUserColumns, req, true, false);
         await sql.connect(sqlConfig);
-        var password = await bcrypt.hash(req.body.Password, saltRounds);
-        const result = await sql.query`insert into dbo.Users values(${req.body.Username},${password},${req.body.Email},${req.body.First_Name},${req.body.Surname},${req.body.Role},${req.body.PatientList})`;
-
-        if (result.rowsAffected = 1) {
-          res.status(200).json({ message: "Success!" });
-        }
+        const result = await sql.query`INSERT INTO dbo.Users VALUES(NewID(), ${stmts.join(", ")})`;
+        console.log(`INSERT INTO dbo.Users VALUES(NewID(), ${stmts.join(", ")})`);
+        res.status(200).send({ message: "Success!" });
       } catch (err) {
-        res.status(500).json({ message: err });
+        console.log(err);
+        res.status(500).send({ message: err });
       }
     }
   });
 });
+
 // Create a new patient
 app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
-  var newPatient = req.body.patient;
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.status(403).send({ message: "Invalid Login" }); // 403 'Forbidden' (invalid token)
     } else {
       try {
+        let stmts = await createQuery(allowedPatientColumns, req, false, true);
         await sql.connect(sqlConfig);
-        const result = await sql.query`insert into Patient values(
-          NewID(),
-          ${newPatient.FirstName},
-          ${newPatient.LastName},
-          ${newPatient.DOB},
-          ${newPatient.Phone},
-          ${newPatient.Sex},
-          ${newPatient.Address},
-          ${newPatient.EmergencyContact},
-          ${newPatient.EmergencyContactPhone},
-          ${newPatient.Prescriptions},
-          ${newPatient.PrescriptionHistory},
-          ${newPatient.HealthHistory},
-          ${newPatient.FamilyHistory},
-          ${newPatient.Diagnoses})`;
+        const result = await sql.query(`INSERT INTO dbo.Patient VALUES(NewID(),${stmts.join(", ")})'`)
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.status(500).send({ message: err });
@@ -282,23 +348,26 @@ app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
     }
   });
 });
+
 // Create a new appointment
 app.use('/createappointment', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.sendStatus(403).send(err); // 403 'Forbidden' (invalid token)
     } else {
       try {
+        let stmts = await createQuery(allowedAppointmentColumns, req, false, false);
         await sql.connect(sqlConfig);
-        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
-        // res.json(result.recordset);
+        const result = await sql.query(`INSERT INTO dbo.Appointments VALUES(NewID(),${stmts.join(", ")})'`)
+        res.status(200).send({ message: "success" });
       } catch (err) {
-        console.log('Error in /post\n', err);
+        console.log('Error in create appointment\n', err);
         res.send(500, err);
       }
     }
   });
 });
+
 // Create a new message
 app.use('/createmessage', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
@@ -306,9 +375,10 @@ app.use('/createmessage', verifyToken.verifyToken, (req, res) => {
       res.sendStatus(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
+        let stmts = await createQuery(allowedMessageColumns, req, false, false);
         await sql.connect(sqlConfig);
-        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
-        // res.json(result.recordset);
+        const result = await sql.query(`INSERT INTO dbo.Messages VALUES(NewID(), ${stmts.join(", ")})'`)
+        res.status(200).send({ message: "success" });
       } catch (err) {
         console.log('Error in /post\n', err);
         res.send(500, err);
@@ -316,6 +386,7 @@ app.use('/createmessage', verifyToken.verifyToken, (req, res) => {
     }
   });
 });
+
 // Create a new lab
 app.use('/createlab', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
@@ -323,9 +394,10 @@ app.use('/createlab', verifyToken.verifyToken, (req, res) => {
       res.sendStatus(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
+        let stmts = await createQuery(allowedLabColumns, req, false, false);
         await sql.connect(sqlConfig);
-        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
-        // res.json(result.recordset);
+        const result = await sql.query(`INSERT INTO dbo.Lab VALUES(NewID(), ${stmts.join(", ")})'`)
+        res.status(200).send({ message: "success" });
       } catch (err) {
         console.log('Error in /post\n', err);
         res.send(500, err);
@@ -333,6 +405,7 @@ app.use('/createlab', verifyToken.verifyToken, (req, res) => {
     }
   });
 });
+
 // Create a new prescription
 app.use('/createprescription', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
@@ -340,9 +413,10 @@ app.use('/createprescription', verifyToken.verifyToken, (req, res) => {
       res.sendStatus(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
+        let stmts = await createQuery(allowedPrescriptionColumns, req, false, false);
         await sql.connect(sqlConfig);
-        const result = await sql.query`insert into Users(Username,Password,Email,First_Name,Surname,Role) values(${Username},${Password},${Email},${First_Name},${Surname},${Role})`;
-        // res.json(result.recordset);
+        const result = await sql.query(`INSERT INTO dbo.Prescription VALUES(NewID(), ${stmts.join(", ")})'`)
+        res.status(200).send({ message: "success" });
       } catch (err) {
         console.log('Error in /post\n', err);
         res.send(500, err);
@@ -353,6 +427,26 @@ app.use('/createprescription', verifyToken.verifyToken, (req, res) => {
 // #endregion
 
 // #region Updates
+// Update existing doctor code
+app.use('/updatedoctorcode', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      console.log(err);
+      res.sendStatus(403); // 403 'Forbidden'
+    } else {
+      try {
+        let stmts = await createQuery(allowedDoctorColumns, req, false, false);
+        await sql.connect(sqlConfig);
+        await sql.query(`UPDATE dbo.DoctorCodes SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        res.status(200).json({ message: "Success!" });
+      } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: error });
+      }
+    }
+  });
+});
+
 // Update existing user
 app.use('/updateuser', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
@@ -360,13 +454,9 @@ app.use('/updateuser', verifyToken.verifyToken, (req, res) => {
       res.status(403).json({ message: "Access Denied" }); // 403 'Forbidden'
     } else {
       try {
-        let stmts = await createQuery(allowedUserColumns, req);
-
-        if (stmts.length == 0) {
-          return res.sendStatus(204); //nothing to do
-        }
+        let stmts = await createQuery(allowedUserColumns, req, true, false);
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Users SET ${stmts.join(", ")} WHERE Username = '${req.body.Username}'`)
+        await sql.query(`UPDATE dbo.DoctorCodes SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
         res.status(200).json({ message: "Success!" });
       } catch (error) {
         console.log(error);
@@ -383,13 +473,9 @@ app.use('/updatepatient', verifyToken.verifyToken, (req, res) => {
       res.status(403).send({ message: "Access Denied" }); // 403 'Forbidden'
     } else {
       try {
-        let stmts = await createQuery(allowedPatientColumns, req);
-
-        if (stmts.length == 0) {
-          return res.sendStatus(204); //nothing to do
-        }
+        let stmts = await createQuery(allowedPatientColumns, req, false, true);
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Patient SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Patients SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
         res.status(200).send({ message: "success" });
       } catch (err) {
         console.log(err);
@@ -412,7 +498,7 @@ app.use('/updateappointment/', verifyToken.verifyToken, (req, res) => {
           return res.sendStatus(204); //nothing to do
         }
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Appointment SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Appointments SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
         res.status(200).send({ message: "success" });
       } catch (err) {
         console.log(err);
@@ -435,7 +521,7 @@ app.use('/updatemessage/', verifyToken.verifyToken, (req, res) => {
           return res.sendStatus(204); //nothing to do
         }
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Message SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Messages SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.send(500, err);
@@ -457,7 +543,7 @@ app.use('/updatelab/', verifyToken.verifyToken, (req, res) => {
           return res.sendStatus(204); //nothing to do
         }
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Lab SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Labs SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.send(500, err);
@@ -479,7 +565,7 @@ app.use('/updateprescription/', verifyToken.verifyToken, (req, res) => {
           return res.sendStatus(204); //nothing to do
         }
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Prescription SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Prescriptions SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.send(500, err);
@@ -490,8 +576,25 @@ app.use('/updateprescription/', verifyToken.verifyToken, (req, res) => {
 // #endregion
 
 // #region Deletes
+// Delete existing doctor code
+app.use('/deletedoctorcode', verifyToken.verifyToken, (req, res) => {
+  jwt.verify(req.token, "secretkey", async (err, authData) => {
+    if (err) {
+      console.log(err);
+      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+    } else {
+      try {
+        await sql.connect(sqlConfig);
+        const result = await sql.query`DELETE FROM dbo.DoctorCodes WHERE id = ${req.body.id}`;
+        res.json(result.recordset);
+      } catch (err) {
+        res.send(500, err);
+      }
+    }
+  });
+});
 // Delete existing user
-app.use('/deleteuser/', (req, res) => {
+app.use('/deleteuser/', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.status(403).json({ message: "Access Denied" }); // 403 'Forbidden'
@@ -510,15 +613,15 @@ app.use('/deleteuser/', (req, res) => {
   });
 });
 // Delete existing patient
-app.use('/deletepatient/', (req, res) => {
+app.use('/deletepatient/', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.status(403).send({ message: "Access Denied" }); // 403 'Forbidden'
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`DELETE FROM dbo.Patient
-          WHERE dbo.Patient.id = '${req.body.id}'`;
+        const result = await sql.query`DELETE FROM dbo.Patients
+          WHERE dbo.Patients.id = '${req.body.id}'`;
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.status(500).send({ message: err });
@@ -527,31 +630,32 @@ app.use('/deletepatient/', (req, res) => {
   });
 });
 // Delete existing appointment
-app.use('/deleteappointment/', (req, res) => {
+app.use('/deleteappointment', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
     } else {
       try {
+        console.log(req.body.id);
         await sql.connect(sqlConfig);
-        const result = await sql.query`DELETE FROM dbo.Appointment
-          WHERE dbo.Appointment.id = '${req.body.id}`;
+        const result = await sql.query`DELETE from dbo.Appointments where dbo.Appointments.id = CAST(${req.body.id} AS uniqueidentifier)`;
+        res.status(200).send({ message: "success" });
       } catch (err) {
+        console.log(err);
         res.send(500, err);
       }
     }
   });
 });
 // Delete existing message
-app.use('/deletemessage/', (req, res) => {
+app.use('/deletemessage/', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.sendStatus(403); // 403 'Forbidden'
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`DELETE FROM dbo.Message
-          WHERE dbo.Message.id = '${req.body.id}'`;
+        const result = await sql.query`DELETE FROM dbo.Messages WHERE dbo.Messages.id = '${req.body.id}'`;
       } catch (err) {
         res.send(500, err);
       }
@@ -566,8 +670,8 @@ app.use('/deletelab/', (req, res) => {
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`DELETE FROM dbo.Lab
-          WHERE dbo.Lab.id = '${req.body.id}'`;
+        const result = await sql.query`DELETE FROM dbo.Labs
+          WHERE dbo.Labs.id = '${req.body.id}'`;
       } catch (err) {
         res.send(500, err);
       }
@@ -582,8 +686,8 @@ app.use('/deleteprescription/', (req, res) => {
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`DELETE FROM dbo.Prescription
-          WHERE dbo.Prescription.id = ''${req.params}`;
+        const result = await sql.query`DELETE FROM dbo.Prescriptions
+          WHERE dbo.Prescriptions.id = ''${req.params}`;
       } catch (err) {
         res.send(500, err);
       }
@@ -593,7 +697,9 @@ app.use('/deleteprescription/', (req, res) => {
 // #endregion
 
 // #region StartServer
-http.createServer(app).listen(5174);
+http.createServer(app).listen(5174, () => {
+  console.log('ding');
+});
 
 // https.createServer({
 //   key: fs.readFileSync('./ssl/privkey3.pem'),
