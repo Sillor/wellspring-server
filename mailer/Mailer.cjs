@@ -151,49 +151,4 @@ function sendPrescriptionEmail(recipient, prescription) {
     });
 }
 
-let patient = {
-    FirstName: 'John',
-    LastName: 'Doe',
-    DOB: '01-01-1990',
-    Phone: '1234567890',
-    Sex: 'Male',
-    Address: '123 Street, City, State, Country',
-    EmergencyContact: 'Jane Doe',
-    EmergencyContactPhone: '0987654321',
-    Prescriptions: 'Medication 1, Medication 2',
-    PrescriptionHistory: 'Medication 3, Medication 4',
-    HealthHistory: 'Condition 1, Condition 2',
-    FamilyHistory: 'Condition 3, Condition 4',
-    Diagnoses: 'Diagnosis 1, Diagnosis 2'
-};
-
-let appointment = {
-    FirstName: 'John',
-    LastName: 'Doe',
-    DOB: '01-01-1990',
-    ScheduledDate: '01-01-2022'
-};
-
-let labOrder = {
-    FirstName: 'John',
-    LastName: 'Doe',
-    DOB: '01-01-1990',
-    Lab: 'Lab Name',
-    OrderDate: '01-01-2022'
-};
-
-let prescription = {
-    FirstName: 'John',
-    LastName: 'Doe',
-    DOB: '01-01-1990',
-    PresriptionName: 'Medication Name',
-    OrderDate: '01-01-2022'
-};
-
-// sendPatientEmail('egorstrah95@gmail.com', patient);
-// sendConfirmation('egorstrah95@gmail.com');
-// sendAppointmentEmail('egorstrah95@gmail.com', appointment);
-// sendLabOrderEmail('egorstrah95@gmail.com', labOrder);
-// sendPrescriptionEmail('egorstrah95@gmail.com', prescription);
-
 module.exports = { sendConfirmation, sendPatientEmail, sendAppointmentEmail, sendLabOrderEmail };
