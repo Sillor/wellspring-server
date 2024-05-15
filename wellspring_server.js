@@ -14,6 +14,8 @@ const sql = require('mssql');
 const data = require("./sqluser.json");
 const e = require('express');
 const { verify } = require('crypto');
+const nodemon = require('nodemon');
+const mailer = require('./mailer/Mailer.cjs');
 const sqlConfig = {
   user: data[0].user,
   // user: "app",
@@ -40,7 +42,7 @@ app.use(cors());
 
 // #region Vars for SQL
 var allowedDoctorCodes = ["id", "activecode", "invitedby"] // Doctor Codes
-var allowedPrescriptionColumns = ["id", "Patientid", "PrescriptionName", "OrderDate", "Dosage", "Active"] // PRESCRIPTION
+var allowedPrescriptionColumns = ["id", "Patientid", "PrescriptionName", "OrderDate", "Dosage", "Active", "OrderedBy"] // PRESCRIPTION
 var allowedLabColumns = ["id", "Patientid", "Lab", "OrderDate", "Status", "Results"] // LAB
 var allowedMessageColumns = ["id", "Patientid", "MessageHeader", "MessageContents", "Status"] // MESSAGE
 var allowedAppointmentColumns = ["id", "Patientid", "ScheduledDate", "Status", "Username", "Notes", "Time", "Care"] // APPOINTMENT
@@ -145,7 +147,7 @@ app.use('/doctorcodes', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       console.log(err);
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -162,7 +164,7 @@ app.use('/doctorcodes', verifyToken.verifyToken, (req, res) => {
 app.use('/patients', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -179,7 +181,7 @@ app.use('/patient', verifyToken.verifyToken, (req, res) => {
 
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -195,7 +197,7 @@ app.use('/patient', verifyToken.verifyToken, (req, res) => {
 app.use('/appointments', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -214,7 +216,7 @@ app.use('/appointments', verifyToken.verifyToken, (req, res) => {
 app.use('/messages', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -230,7 +232,7 @@ app.use('/messages', verifyToken.verifyToken, (req, res) => {
 app.use('/labs', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -246,7 +248,7 @@ app.use('/labs', verifyToken.verifyToken, (req, res) => {
 app.use('/prescriptions', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -263,7 +265,7 @@ app.use('/prescriptions', verifyToken.verifyToken, (req, res) => {
 app.use('/users', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -280,7 +282,7 @@ app.use('/users', verifyToken.verifyToken, (req, res) => {
 app.use('/user', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -305,7 +307,7 @@ app.use('/createdoctorcode', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       console.log(err);
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -346,7 +348,7 @@ app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`insert into Patient values(
+        const result = await sql.query`insert into Patients values(
           NewID(),
           ${newPatient.FirstName},
           ${newPatient.LastName},
@@ -360,10 +362,23 @@ app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
           ${newPatient.PrescriptionHistory},
           ${newPatient.HealthHistory},
           ${newPatient.FamilyHistory},
-          ${newPatient.Diagnoses})`;
+          ${newPatient.Diagnoses},
+          ${newPatient.BloodType},
+          ${newPatient.RHFactor},
+          ${newPatient.PreviousDiagnosis},
+          ${newPatient.Allergies}
+        )`;
+
+
+        const emailQuery = `SELECT Email FROM dbo.Users WHERE Username = '${authData.username}'`;
+        const emailResult = await sql.query(emailQuery);
+        const email = emailResult.recordset[0].Email;
+        console.log(`Attepmt to send email to ${email}`)
+        mailer.sendPatientEmail(email, req.body);
+
         res.status(200).send({ message: "success" });
       } catch (err) {
-        console.log('Error in create user\n', err);
+        console.log('Error in create patient\n', err);
         res.status(500).send({ message: err });
       }
     }
@@ -374,7 +389,7 @@ app.use('/createpatient', verifyToken.verifyToken, (req, res) => {
 app.use('/createappointment', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403).send(err); // 403 'Forbidden' (invalid token)
+      res.status(403).send(err); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -387,6 +402,14 @@ app.use('/createappointment', verifyToken.verifyToken, (req, res) => {
           ${req.body.Notes},
           ${req.body.Time},
           ${req.body.Care})`;
+
+
+
+        const emailQuery = `SELECT Email FROM dbo.Users WHERE Username = '${authData.username}'`;
+        const emailResult = await sql.query(emailQuery);
+        const email = emailResult.recordset[0].Email;
+        mailer.sendAppointmentEmail(email, req.body);
+
         res.send({ message: "success" });
       } catch (err) {
         console.log('Error in create appointment\n', err);
@@ -400,7 +423,7 @@ app.use('/createappointment', verifyToken.verifyToken, (req, res) => {
 app.use('/createmessage', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -418,11 +441,20 @@ app.use('/createmessage', verifyToken.verifyToken, (req, res) => {
 app.use('/createlab', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
         const result = await sql.query`insert into Lab VALUES(NewID(),${Patientid},${Lab},${OrderDate},${Status},${Results})`;
+
+        
+
+        const emailQuery = `SELECT Email FROM dbo.Users WHERE Username = '${authData.username}'`;
+        const emailResult = await sql.query(emailQuery);
+        const email = emailResult.recordset[0].Email;
+        mailer.sendLabOrderEmail(email, req.body);
+
+
         res.send({ message: "success" });
       } catch (err) {
         console.log('Error in create lab\n', err);
@@ -436,11 +468,19 @@ app.use('/createlab', verifyToken.verifyToken, (req, res) => {
 app.use('/createprescription', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
-        const result = await sql.query`insert into dbo.Prescription VALUES(NewID(), ${req.body.Patientid},${req.body.PrescriptionName},${req.body.OrderDate},${req.body.Dosage},${req.body.Active})`;
+        const result = await sql.query`insert into dbo.Prescription VALUES(
+          NewID(), 
+          ${req.body.Patientid},
+          ${req.body.PrescriptionName},
+          ${req.body.OrderDate},
+          ${req.body.Dosage},
+          ${req.body.Active},
+          ${req.body.OrderedBy}
+        )`;
         console.log("successful create prescription")
         res.send({ message: "success" });
       } catch (err) {
@@ -458,14 +498,14 @@ app.use('/updatedoctorcode', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       console.log(err);
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
         const result = await sql.query`UPDATE dbo.DoctorCodes SET activecode = ${req.body.activecode}, invitedby = ${req.body.invitedby} WHERE id = ${req.body.id}`;
-        res.send({message: "success"});
+        res.send({ message: "success" });
       } catch (err) {
-        res.sendStatus(500).send(err);
+        res.status(500).send(err);
       }
     }
   });
@@ -481,7 +521,7 @@ app.use('/updateuser', verifyToken.verifyToken, (req, res) => {
         let stmts = await createQuery(allowedUserColumns, req);
 
         if (stmts.length == 0) {
-          return res.sendStatus(204); //nothing to do
+          return res.status(204); //nothing to do
         }
 
         await sql.connect(sqlConfig);
@@ -506,7 +546,7 @@ app.use('/updatepatient', verifyToken.verifyToken, (req, res) => {
         let stmts = await createQuery(allowedPatientColumns, req);
 
         if (stmts.length == 0) {
-          return res.sendStatus(204); //nothing to do
+          return res.status(204); //nothing to do
         }
         await sql.connect(sqlConfig);
         await sql.query(`UPDATE dbo.Patients SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
@@ -522,14 +562,14 @@ app.use('/updatepatient', verifyToken.verifyToken, (req, res) => {
 app.use('/updateappointment/', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden'
+      res.status(403); // 403 'Forbidden'
     } else {
       try {
         let stmts = await createQuery(allowedAppointmentColumns, req);
         stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`)
 
         if (stmts.length == 0) {
-          return res.sendStatus(204); //nothing to do
+          return res.status(204); //nothing to do
         }
         await sql.connect(sqlConfig);
         await sql.query(`UPDATE dbo.Appointments SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
@@ -545,14 +585,14 @@ app.use('/updateappointment/', verifyToken.verifyToken, (req, res) => {
 app.use('/updatemessage/', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden'
+      res.status(403); // 403 'Forbidden'
     } else {
       try {
         let stmts = await createQuery(allowedMessageColumns, req);
         stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`)
 
         if (stmts.length == 0) {
-          return res.sendStatus(204); //nothing to do
+          return res.status(204); //nothing to do
         }
         await sql.connect(sqlConfig);
         await sql.query(`UPDATE dbo.Messages SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
@@ -567,14 +607,14 @@ app.use('/updatemessage/', verifyToken.verifyToken, (req, res) => {
 app.use('/updatelab/', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden'
+      res.status(403); // 403 'Forbidden'
     } else {
       try {
         let stmts = await createQuery(allowedLabColumns, req);
         stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`)
 
         if (stmts.length <= 1) {
-          return res.sendStatus(204); //nothing to do
+          return res.status(204); //nothing to do
         }
         await sql.connect(sqlConfig);
         await sql.query(`UPDATE dbo.Labs SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
@@ -589,14 +629,14 @@ app.use('/updatelab/', verifyToken.verifyToken, (req, res) => {
 app.use('/updateprescription/', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden'
+      res.status(403); // 403 'Forbidden'
     } else {
       try {
         let stmts = await createQuery(allowedPrescriptionColumns, req);
         stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`)
 
         if (stmts.length <= 1) {
-          return res.sendStatus(204); //nothing to do
+          return res.status(204); //nothing to do
         }
         await sql.connect(sqlConfig);
         await sql.query(`UPDATE dbo.Prescriptions SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
@@ -615,7 +655,7 @@ app.use('/deletedoctorcode', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       console.log(err);
-      res.sendStatus(403); // 403 'Forbidden' (invalid token)
+      res.status(403); // 403 'Forbidden' (invalid token)
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -667,7 +707,7 @@ app.use('/deletepatient/', verifyToken.verifyToken, (req, res) => {
 app.use('/deleteappointment', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden'
+      res.status(403); // 403 'Forbidden'
     } else {
       try {
         console.log(req.body.id);
@@ -685,7 +725,7 @@ app.use('/deleteappointment', verifyToken.verifyToken, (req, res) => {
 app.use('/deletemessage/', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden'
+      res.status(403); // 403 'Forbidden'
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -700,7 +740,7 @@ app.use('/deletemessage/', verifyToken.verifyToken, (req, res) => {
 app.use('/deletelab/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden'
+      res.status(403); // 403 'Forbidden'
     } else {
       try {
         await sql.connect(sqlConfig);
@@ -716,7 +756,7 @@ app.use('/deletelab/', (req, res) => {
 app.use('/deleteprescription/', (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
-      res.sendStatus(403); // 403 'Forbidden'
+      res.status(403); // 403 'Forbidden'
     } else {
       try {
         await sql.connect(sqlConfig);

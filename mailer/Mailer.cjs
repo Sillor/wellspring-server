@@ -8,8 +8,10 @@ const transporter = nodemailer.createTransport({
     port: 465,
     secure: true,
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        // user: process.env.EMAIL_USER,
+        user: "wellspring.noreplies@gmail.com",
+        // pass: process.env.EMAIL_PASSWORD,
+        pass: "cfqt kzze gygr xzap",
     },
 });
 
@@ -35,8 +37,10 @@ function sendPatientEmail(recipient, patient) {
     let transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASSWORD,
+            // user: process.env.EMAIL_USER,
+            user: "wellspring.noreplies@gmail.com",
+            // pass: process.env.EMAIL_PASSWORD,
+            pass: "cfqt kzze gygr xzap",
         },
     });
 
@@ -65,8 +69,10 @@ function sendAppointmentEmail(recipient, appointment) {
     let transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASSWORD,
+            // user: process.env.EMAIL_USER,
+            user: "wellspring.noreplies@gmail.com",
+            // pass: process.env.EMAIL_PASSWORD,
+            pass: "cfqt kzze gygr xzap",
         },
     });
 
@@ -95,8 +101,10 @@ function sendLabOrderEmail(recipient, labOrder) {
     let transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASSWORD,
+            // user: process.env.EMAIL_USER,
+            user: "wellspring.noreplies@gmail.com",
+            // pass: process.env.EMAIL_PASSWORD,
+            pass: "cfqt kzze gygr xzap",
         },
     });
 
@@ -125,8 +133,10 @@ function sendPrescriptionEmail(recipient, prescription) {
     let transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASSWORD,
+            // user: process.env.EMAIL_USER,
+            user: "wellspring.noreplies@gmail.com",
+            // pass: process.env.EMAIL_PASSWORD,
+            pass: "cfqt kzze gygr xzap",
         },
     });
 
