@@ -2,7 +2,11 @@
 
 Wellspring Server is the backend component of the Wellspring healthcare management application. It handles all server-side operations including database interactions, authentication, and email notifications.
 
-> [!WARNING]  
+> [!NOTE]  
+> Please note that this is server side of the Wellspring application. You will need to set up the client side to use the application. The client side can be found [here](https://github.com/Sillor/wellspring-client).
+
+
+> [!CAUTION]  
 > Please note that the database files are not included in this project. You will need to create your own database and tables to use this server.
 
 ## Features
