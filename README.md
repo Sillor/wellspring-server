@@ -34,7 +34,7 @@ To get started with Wellspring Server, ensure you have Node.js and npm installed
     ```
 5. Start the server.
     ```bash
-    npm start
+    nodemon wellspring_server.js
     ```
 
 The server will be running at [http://localhost:5174](http://localhost:5174).
