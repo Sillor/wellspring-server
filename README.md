@@ -2,6 +2,9 @@
 
 Wellspring Server is the backend component of the Wellspring healthcare management application. It handles all server-side operations including database interactions, authentication, and email notifications.
 
+> [!WARNING]  
+> Please note that the database files are not included in this project. You will need to create your own database and tables to use this server.
+
 ## Features
 
 - **Authentication:** Uses JSON Web Tokens (JWT) for secure user authentication.
@@ -46,7 +49,7 @@ Wellspring Server uses several dependencies for its operations:
 
 ## License
 
-Wellspring Server is licensed under the ISC license.
+Wellspring Server is licensed under the GNU General Public License v3.0.
 
 ## Contact and Contributions
 
