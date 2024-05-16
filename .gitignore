@@ -1,0 +1,13 @@
+.env
+node_modules
+ssl/cert3.pem
+ssl/chain3.pem
+ssl/privkey3.pem
+ssl/fullchain3.pem
+sqluser.json
+sqluser.json
+tester.js
+sqluser.json
+sqluser.json
+sqluser.json
+sqluser.json
