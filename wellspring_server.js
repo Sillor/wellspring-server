@@ -41,17 +41,18 @@ app.use(express.json());
 app.use(cors());
 
 // #region Vars for SQL
-var allowedDoctorCodes = ["id", "activecode", "invitedby"] // Doctor Codes
-var allowedPrescriptionColumns = ["id", "Patientid", "PrescriptionName", "OrderDate", "Dosage", "Active", "OrderedBy"] // PRESCRIPTION
-var allowedLabColumns = ["id", "Patientid", "Lab", "OrderDate", "Status", "Results"] // LAB
-var allowedMessageColumns = ["id", "Patientid", "MessageHeader", "MessageContents", "Status"] // MESSAGE
 var allowedAppointmentColumns = ["id", "Patientid", "ScheduledDate", "Status", "Username", "Notes", "Time", "Care"] // APPOINTMENT
-var allowedUserColumns = ["Username", "Password", "Email", "FirstName", "LastName", "Role", "PatientList"] // USER
-var allowedPatientColumns = ["FirstName", "LastName", "id", "DOB", "Phone", "Sex", "Address", "EmergencyContact", "EmergencyContactPhone", "Prescriptions",
-  "PrescriptionHistory", "HealthHistory", "FamilyHistory", "Diagnoses", "BloodType", "RHFactor", "PreviousDiagnosis", "Allergies"] // PATIENT
+var allowedDoctorCodes = ["id", "activecode", "invitedby"] // Doctor Codes
+var allowedLabColumns = ["id", "Patientid", "Lab", "OrderDate", "Status", "Results"] // LAB
+var allowedPatientColumns = ["id", "FirstName", "LastName", "DOB", "Phone", "Sex", "Address", "EmergencyContact", "EmergencyContactPhone", "Prescriptions",
+  "PrescriptionHistory", "HealthHistory", "FamilyHistory", "Diagnosis", "BloodType", "RHFactor", "PreviousDiagnosis", "Allergies"] // PATIENT
+var allowedPrescriptionColumns = ["id", "Patientid", "PrescriptionName", "OrderDate", "Dosage", "Active", "OrderedBy"] // PRESCRIPTION
+var allowedUserColumns = ["Username", "Password", "Email", "FirstName", "LastName", "Role"] // USER
+var allowedMessageColumns = ["id", "Patientid", "MessageHeader", "MessageContents", "Status"] // MESSAGE NOT USED
 // #endregion
 
 // #region Functions
+// createQuery is to UPDATE tables
 async function createQuery(input, req) {
   var stmts = [];
 
@@ -64,6 +65,21 @@ async function createQuery(input, req) {
       }
     }
     console.log(stmts);
+  }
+
+  return stmts;
+}
+
+// createInsertQuery is to CREATE a new row - NULL if not provided
+async function createInsertQuery(input, req) {
+  var stmts = [];
+
+  for (let c of input) {
+    if (c in req.body) {
+      stmts.push(`${c} = '${req.body[c]}'`)
+    } else {
+      stmts.push(`${c} = 'NULL'`)
+    }
   }
 
   return stmts;
@@ -447,7 +463,7 @@ app.use('/createlab', verifyToken.verifyToken, (req, res) => {
         await sql.connect(sqlConfig);
         const result = await sql.query`insert into Lab VALUES(NewID(),${Patientid},${Lab},${OrderDate},${Status},${Results})`;
 
-        
+
 
         const emailQuery = `SELECT Email FROM dbo.Users WHERE Username = '${authData.username}'`;
         const emailResult = await sql.query(emailQuery);
@@ -604,20 +620,20 @@ app.use('/updatemessage/', verifyToken.verifyToken, (req, res) => {
   });
 });
 // Update existing lab
-app.use('/updatelab/', verifyToken.verifyToken, (req, res) => {
+app.use('/updatelab', verifyToken.verifyToken, (req, res) => {
   jwt.verify(req.token, "secretkey", async (err, authData) => {
     if (err) {
       res.status(403); // 403 'Forbidden'
     } else {
       try {
         let stmts = await createQuery(allowedLabColumns, req);
-        stmts.push(`LastModified = '${new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')}'`)
 
-        if (stmts.length <= 1) {
+        if (stmts.length < 1) {
           return res.status(204); //nothing to do
         }
+
         await sql.connect(sqlConfig);
-        await sql.query(`UPDATE dbo.Labs SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
+        await sql.query(`UPDATE dbo.Lab SET ${stmts.join(", ")} WHERE id = '${req.body.id}'`)
         res.status(200).send({ message: "success" });
       } catch (err) {
         res.send(500, err);
